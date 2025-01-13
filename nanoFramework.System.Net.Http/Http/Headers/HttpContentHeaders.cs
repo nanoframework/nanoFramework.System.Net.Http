@@ -36,6 +36,12 @@ namespace System.Net.Http.Headers
                     {
                         return Convert.ToInt64(contentLengthValue[0]);
                     }
+
+                    if(_content.TryComputeLength(out long computedOrBufferLength))
+                    {
+                        _content.Headers._headerStore.SetAddVerified(HttpKnownHeaderNames.ContentLength, computedOrBufferLength.ToString());
+                        return computedOrBufferLength;
+                    }
                 }
 
                 return -1;

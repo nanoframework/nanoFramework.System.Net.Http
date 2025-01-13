@@ -105,6 +105,7 @@
     <Compile Include="..\nanoFramework.System.Net.Http\Http\HttpResponseMessage.cs">
       <Link>Http\HttpResponseMessage.cs</Link>
     </Compile>
+    <Compile Include="..\nanoFramework.System.Net.Http\Http\ReadOnlyStream.cs" Link="Http\ReadOnlyStream.cs" />
     <Compile Include="..\nanoFramework.System.Net.Http\Http\StreamContent.cs">
       <Link>Http\StreamContent.cs</Link>
     </Compile>

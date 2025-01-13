@@ -64,6 +64,7 @@
     <Compile Include="Http\HttpRequestException.cs" />
     <Compile Include="Http\HttpRequestMessage.cs" />
     <Compile Include="Http\HttpResponseMessage.cs" />
+    <Compile Include="Http\ReadOnlyStream.cs" />
     <Compile Include="Http\StreamContent.cs" />
     <Compile Include="Http\StringContent.cs" />
     <Compile Include="Http\System.Net.IKnowWhenDone.cs" />

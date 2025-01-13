@@ -182,24 +182,17 @@ namespace System.Web
                 return true;
             }
 
-            switch (ch)
+            return ch switch
             {
-                case '(':
-                case ')':
-                case '*':
-                case '-':
-                case '.':
-                case '_':
-                case '!':
-                    return true;
-            }
-            return false;
+                '~' or '-' or '.' or '_' => true,
+                _ => false,
+            };
         }
 
         /// <summary>
         /// Converts a string that has been encoded for transmission in a URL into a decoded string.
         /// </summary>
-        /// <param name="str">The string to decode./param>
+        /// <param name="str">The string to decode.</param>
         /// <returns>The decoded URL</returns>
         public static string UrlDecode(string str)
         {

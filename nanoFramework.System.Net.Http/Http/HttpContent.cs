@@ -221,7 +221,7 @@ namespace System.Net.Http
             LoadIntoBuffer();
 
             _buffer.Seek(0, SeekOrigin.Begin);
-            return _buffer;
+            return new ReadOnlyStream(_buffer);
         }
     }
 }

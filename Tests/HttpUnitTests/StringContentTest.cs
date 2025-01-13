@@ -18,7 +18,7 @@ namespace HttpUnitTests
         [TestMethod]
         public void Ctor_NullString_ThrowsArgumentNullException()
         {
-            Assert.Throws(typeof(ArgumentNullException),
+            Assert.ThrowsException(typeof(ArgumentNullException),
                 () => new StringContent(null));
         }
 
@@ -27,8 +27,8 @@ namespace HttpUnitTests
         {
             // Consider empty strings like null strings (null and empty strings should be treated equally).
             var content = new StringContent(string.Empty);
-            Stream result = content.ReadAsStream();
-            Assert.Equal(0, result.Length);
+            using Stream result = content.ReadAsStream();
+            Assert.AreEqual(0, result.Length);
         }
 
         [TestMethod]
@@ -39,18 +39,18 @@ namespace HttpUnitTests
             Encoding defaultStringEncoding = Encoding.UTF8;
 
             // If no encoding is defined, the default encoding is used: utf-8
-            Assert.Equal("text/plain", content.Headers.ContentType.MediaType);
-            Assert.Equal("utf-8", content.Headers.ContentType.CharSet);
+            Assert.AreEqual("text/plain", content.Headers.ContentType.MediaType);
+            Assert.AreEqual("utf-8", content.Headers.ContentType.CharSet);
 
             // Make sure the default encoding is also used when serializing the content.
             var destination = new MemoryStream();
             content.CopyTo(destination);
 
-            Assert.Equal(8, destination.Length);
+            Assert.AreEqual(8, destination.Length);
 
             destination.Seek(0, SeekOrigin.Begin);
             string roundTrip = new StreamReader(destination).ReadToEnd();
-            Assert.Equal(sourceString, roundTrip);
+            Assert.AreEqual(sourceString, roundTrip);
         }
     }
 }

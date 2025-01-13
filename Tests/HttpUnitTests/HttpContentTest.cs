@@ -18,11 +18,6 @@ namespace HttpUnitTests
         [TestMethod]
         public void Dispose_BufferContentThenDisposeContent_BufferedStreamGetsDisposed()
         {
-            Assert.SkipTest("Skipping test because of issue in Test Framework");
-
-            // TODO
-            // test is being reported as failing, despite it's successful, issue lyes in the TestFramework
-
             MockContent content = new MockContent();
             content.LoadIntoBuffer();
 
@@ -30,15 +25,15 @@ namespace HttpUnitTests
 
             FieldInfo bufferedContentField = type.GetField("_buffer", BindingFlags.Instance | BindingFlags.NonPublic);
 
-            Assert.NotNull(bufferedContentField, "_buffer field shouldn't be null");
+            Assert.IsNotNull(bufferedContentField, "_buffer field shouldn't be null");
 
             MemoryStream bufferedContentStream = bufferedContentField.GetValue(content) as MemoryStream;
-            Assert.NotNull(bufferedContentStream, "bufferedContentStream field shouldn't be null");
+            Assert.IsNotNull(bufferedContentStream, "bufferedContentStream field shouldn't be null");
 
             content.Dispose();
 
             // The following line will throw an ObjectDisposedException if the buffered-stream was correctly disposed.
-            Assert.Throws(typeof(ObjectDisposedException),
+            Assert.ThrowsException(typeof(ObjectDisposedException),
                 () =>
                 {
                     _ = bufferedContentStream.Length.ToString();
@@ -65,9 +60,9 @@ namespace HttpUnitTests
 
             foreach (var testConfig in bufferTests)
             {
-                Assert.True((testConfig.MaxSize >= 1 && testConfig.MaxSize <= (testConfig.NumberOfWrites * testConfig.SizeOfEachWrite) - 1), "Config values out of range.");
+                Assert.IsTrue((testConfig.MaxSize >= 1 && testConfig.MaxSize <= (testConfig.NumberOfWrites * testConfig.SizeOfEachWrite) - 1), "Config values out of range.");
 
-                Assert.Throws(typeof(HttpRequestException),
+                Assert.ThrowsException(typeof(HttpRequestException),
                     () =>
                     {
                         LieAboutLengthContent c = new(

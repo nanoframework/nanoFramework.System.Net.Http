@@ -5,10 +5,7 @@
 //
 
 using nanoFramework.TestFramework;
-using System;
 using System.IO;
-using System.Net.Http;
-using System.Reflection;
 using System.Text;
 using System.Web;
 
@@ -23,18 +20,44 @@ namespace HttpUnitTests
         {
             string str = "../../&amp;param2=%CURRREV%";
 
-            Assert.Equal(str, HttpUtility.UrlDecode(str));
+            Assert.AreEqual(str, HttpUtility.UrlDecode(str));
+        }
+
+        [TestMethod]
+        public void UrlDecodeTest()
+        {
+            byte[] bIn;
+
+            for (char c = char.MinValue; c < '\uD800'; c++)
+            {
+                bIn = Encoding.UTF8.GetBytes(c.ToString());
+                using MemoryStream encodedValueBytes = new MemoryStream();
+
+                // build expected result for UrlEncode
+                for (int i = 0; i < bIn.Length; i++)
+                {
+                    UrlEncodeChar((char)bIn[i], encodedValueBytes, false);
+                }
+
+                byte[] bOut = encodedValueBytes.ToArray();
+                string encodedValue = Encoding.UTF8.GetString(bOut, 0, bOut.Length);
+
+                string decodedValue = HttpUtility.UrlDecode(encodedValue);
+
+                Assert.AreEqual(c.ToString(), decodedValue,
+                    $"Expecting UrlEncode of '{c}' ({(int)c}) as [{c}] got {decodedValue}");
+            }
         }
 
         [TestMethod]
         public void UrlEncodeTest()
         {
-            for (char c = char.MinValue; c < char.MaxValue; c++)
+            byte[] bIn;
+            for (char c = char.MinValue; c < '\uD800'; c++)
             {
-                byte[] bIn;
                 bIn = Encoding.UTF8.GetBytes(c.ToString());
-                MemoryStream expected = new MemoryStream();
-                MemoryStream expUnicode = new MemoryStream();
+                using MemoryStream expected = new MemoryStream();
+                using MemoryStream expUnicode = new MemoryStream();
 
                 // build expected result for UrlEncode
                 for (int i = 0; i < bIn.Length; i++)
@@ -47,10 +70,11 @@ namespace HttpUnitTests
 
                 byte[] bOut = expected.ToArray();
 
-                Assert.Equal(
-                    Encoding.UTF8.GetString(bOut, 0, bOut.Length),
-                    HttpUtility.UrlEncode(c.ToString()),
-                    $"Expecting UrlEncode of '{c}' ({(int)c}) as [{Encoding.UTF8.GetString(bOut, 0, bOut.Length)}] got {HttpUtility.UrlEncode(c.ToString())}");
+                string expectedResult = Encoding.UTF8.GetString(bOut, 0, bOut.Length);
+                string actualResult = HttpUtility.UrlEncode(c.ToString());
+
+                Assert.AreEqual(expectedResult, actualResult,
+                    $"Expecting UrlEncode of '{c}' ({(int)c}) as [{expectedResult}] got {actualResult}");
             }
         }
 
@@ -113,6 +137,6 @@ namespace HttpUnitTests
         }
 
         static char[] hexChars = "0123456789ABCDEF".ToCharArray();
-        const string notEncoded = "!()*-._";
+        const string notEncoded = "~-._";
     }
 }

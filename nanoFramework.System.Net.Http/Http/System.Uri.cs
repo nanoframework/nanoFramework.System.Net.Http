@@ -84,25 +84,31 @@ namespace System
 
         private int DefaultPort(string scheme)
         {
-            switch (scheme)
+            return scheme switch
             {
-                case UriSchemeHttp:
-                case UriSchemeWs:
-                    return HttpDefaultPort;
+                UriSchemeHttp or UriSchemeWs => HttpDefaultPort,
+                UriSchemeHttps or UriSchemeWss => HttpsDefaultPort,
+                "ftp" => 21,
+                "sftp" or "ssh" or "scp" => 22,
+                "gopher" => 70,
+                "nntp" => 119,
+                "telnet" => 23,
+                "ldap" => 389,
+                "ldaps" => 636,
+                "mysql" => 3306,
+                "mssql" => 1433,
+                "oracle" => 1521,
+                "mqtt" => 1883,
+                "mqtts" => 8883,
+                "redis" => 6379,
+                "rtsp" => 554,
+                "postgresql" => 5432,
+                "mongodb" => 27017,
+                "mailto" or "smtp" => 25,
+                "net.tcp" => 808,
 
-                case UriSchemeHttps:
-                case UriSchemeWss:
-                    return HttpsDefaultPort;
-
-                case "ftp": return 21;
-                case "gopher": return 70;
-                case "nntp": return 119;
-                case "telnet": return 23;
-                case "ldap": return 389;
-                case "mailto": return 25;
-                case "net.tcp": return 808;
-                default: return UnknownPort;
-            }
+                _ => UnknownPort,
+            };
         }
 
         /// <summary>
@@ -150,12 +156,12 @@ namespace System
         /// <summary>
         /// Member variable that keeps absolute path.
         /// </summary>
-        protected string _AbsolutePath = null;
+        protected string _absolutePath = string.Empty;
 
         /// <summary>
         /// Member variable that keeps original string passed to Uri constructor.
         /// </summary>
-        protected string _OriginalUriString = null;
+        protected string _originalUriString = null;
 
         /// <summary>
         /// Member variable that keeps scheme of Uri.
@@ -165,7 +171,7 @@ namespace System
         /// <summary>
         /// Member variable that keeps host name ( http and https ).
         /// </summary>
-        protected string _host = "";
+        protected string _host = string.Empty;
 
         /// <summary>
         /// Member variable that keeps boolean if Uri is absolute.
@@ -182,6 +188,21 @@ namespace System
         /// Member variable that keeps absolute uri (generated in method ParseUriString)
         /// </summary>
         protected string _absoluteUri = null;
+
+        /// <summary>
+        /// Member variable that keeps the fragment (if any found)
+        /// </summary>
+        protected string _fragment = string.Empty;
+
+        /// <summary>
+        /// Member variable that keeps the query (if any found)
+        /// </summary>
+        protected string _query = string.Empty;
+
+        /// <summary>
+        /// Member variable that keeps the user info (if any found)
+        /// </summary>
+        protected string _userInfo = string.Empty;
 
 
         /// <summary>
@@ -244,6 +265,21 @@ namespace System
         }
 
         /// <summary>
+        /// Gets a value that indicates whether the port value of the URI is the default for this scheme.
+        /// </summary>
+        public bool IsDefaultPort => DefaultPort(_scheme) == _port;
+
+        /// <summary>
+        /// Gets a value that indicates whether the specified Uri is a file URI.
+        /// </summary>
+        public bool IsFile => _scheme == "file";
+
+        /// <summary>
+        /// Gets an array containing the path segments that make up the specified URI.
+        /// </summary>
+        public string[] Segments => AbsolutePath.Split('/');
+
+        /// <summary>
         /// Gets a local operating-system representation of a file name.
         /// </summary>
         /// <value>A <itemref>String</itemref> containing the local
@@ -261,14 +297,14 @@ namespace System
                     throw new InvalidOperationException();
                 }
 
-                return _AbsolutePath;
+                return _absolutePath;
             }
         }
 
         /// <summary>
         /// Gets the original URI string that was passed to the Uri constructor.
         /// </summary>
-        public string OriginalString => _OriginalUriString;
+        public string OriginalString => _originalUriString;
 
         /// <summary>
         /// Gets a string containing the absolute uri or entire uri of this instance.
@@ -287,6 +323,27 @@ namespace System
                 return _absoluteUri;
             }
         }
+
+        /// <summary>
+        /// Gets the escaped URI fragment, including the leading '#' character if not empty.
+        /// </summary>
+        ///<value>A <itemref>String</itemref> containing the fragment if present.</value>
+        public string Fragment => _fragment;
+
+        /// <summary>
+        /// Gets any query information included in the specified URI, including the leading '?' character if not empty.
+        /// </summary>
+        public string Query => _query;
+
+        /// <summary>
+        /// Gets the AbsolutePath and Query properties separated by a question mark (?).
+        /// </summary>
+        public string PathAndQuery => AbsolutePath + Query;
+
+        /// <summary>
+        /// Gets the user name, password, or other user-specific information associated with the specified URI.
+        /// </summary>
+        public string UserInfo => _userInfo;
 
         /// <summary>
         /// Gets the scheme name for this URI.
@@ -387,7 +444,7 @@ namespace System
         /// </exception>
         public Uri(string uriString)
         {
-            if (uriString is null)
+            if (string.IsNullOrEmpty(uriString))
             {
                 throw new ArgumentNullException();
             }
@@ -408,9 +465,9 @@ namespace System
         protected bool ConstructAbsoluteUri(string uriString)
         {
             // ParseUriString provides full validation including testing for null.
-            if (TryParseUriString(uriString))
+            if (ParseUriString(uriString))
             {
-                _OriginalUriString = uriString;
+                _originalUriString = uriString;
 
                 return true;
             }
@@ -425,7 +482,7 @@ namespace System
         /// </summary>
         /// <param name="uriString">String to construct Uri from</param>
         /// <param name="kind">Type of Uri to construct</param>
-        /// <exception cref="ArgumentException">The scheme specified in the URI formed by combining <paramref name="baseUri"/> and <paramref name="relativeUri"/> is not valid.</exception>
+        /// <exception cref="FormatException">Unable to validate uri</exception>
         public Uri(string uriString, UriKind kind)
         {
             // ParseUriString provides full validation including testing for null.
@@ -470,7 +527,7 @@ namespace System
                     }
             }
 
-            _OriginalUriString = uriString;
+            _originalUriString = uriString;
         }
 
         /// <summary>
@@ -512,6 +569,9 @@ namespace System
             string uriString,
             int startIndex)
         {
+            uriString = ExtractFragment(uriString);
+            uriString = ExtractQuery(uriString);
+
             // Check for valid alpha numeric characters
             int pathLength = uriString.Length - startIndex;
 
@@ -574,12 +634,10 @@ namespace System
         /// <exception cref="Exception">
         /// See constructor description.
         /// </exception>
-        protected bool TryParseUriString(string uriString)
+        protected bool ParseUriString(string uriString)
         {
-            int startIndex = 0;
-
             // Check for null or empty string.
-            if (uriString == null || uriString.Length == 0)
+            if (string.IsNullOrEmpty(uriString))
             {
                 return false;
             }
@@ -591,10 +649,8 @@ namespace System
                 return false;
             }
 
-            string uriStringLower = uriString.ToLower();
-
             // If this is a urn parse and return
-            if (uriStringLower.IndexOf("urn:", startIndex) == 0)
+            if (uriString.IndexOf("urn:", 0) == 0)
             {
                 return ValidateUrn(uriString);
             }
@@ -607,13 +663,14 @@ namespace System
 
             // Validate Scheme
             int endIndex = uriString.IndexOf(':');
-            _scheme = uriString.Substring(0, endIndex);
+            _scheme = uriString.Substring(0, endIndex).ToLower();
+
             if (!IsAlpha(_scheme[0]))
             {
                 return false;
             }
 
-            for (int i = 1; i < _scheme.Length; ++i)
+            for (int i = 1; i < _scheme.Length; i++)
             {
                 if (!(IsAlphaNumeric(_scheme[i]) || _scheme[i] == '+' || _scheme[i] == '-' || _scheme[i] == '.'))
                 {
@@ -621,12 +678,17 @@ namespace System
                 }
             }
 
+            int startIndex;
             // Get past the colon
             startIndex = endIndex + 1;
             if (startIndex >= uriString.Length)
             {
                 return false;
             }
+
+            // If present, extract fragment and query and remove from uriString
+            uriString = ExtractFragment(uriString);
+            uriString = ExtractQuery(uriString);
 
             // Get host, port and absolute path
             bool bRooted = ParseSchemeSpecificPart(uriString, startIndex);
@@ -667,18 +729,78 @@ namespace System
                 }
             }
 
+            // Set AbsoluteUri by reassembling the Uri from extracted values
             _absoluteUri = _scheme + ":" +
                 (bRooted ? "//" : string.Empty) +
-                _host +
+                (String.IsNullOrEmpty(_userInfo) ? string.Empty : _userInfo + "@") + _host +
                 ((DefaultPort(_scheme) == _port) ? string.Empty : ":" + _port.ToString()) +
-                (_scheme == "file" && _AbsolutePath.Length >= 2 && IsAlpha(_AbsolutePath[0]) && _AbsolutePath[1] == ':' ? "/" : string.Empty) +
-                _AbsolutePath;
+                (_scheme == "file" && _absolutePath.Length >= 2 && IsAlpha(_absolutePath[0]) && _absolutePath[1] == ':' ? "/" : string.Empty) +
+                _absolutePath + _query + _fragment;
 
             _isAbsoluteUri = true;
             _isUnc = _scheme == "file" && _host.Length > 0;
 
             // got here, so it must be OK
             return true;
+        }
+
+        /// <summary>
+        /// Extracts the user info portion of the Uri string, but does not modify it
+        /// </summary>
+        /// <param name="uriString">Uri string that is being parsed</param>
+        /// <param name="startIndex">Start index of user credentials</param>
+        private void ParseUserInfo(string uriString, int startIndex)
+        {
+            // Handle user info
+            var userSplitIndex = uriString.IndexOf("@", startIndex);
+            if (userSplitIndex >= 0 && userSplitIndex != startIndex)
+            {
+                int userStartIndex = startIndex;
+                int userEndIndex = userSplitIndex - startIndex;
+                if (uriString.StartsWith(_scheme + "://"))
+                {
+                    userStartIndex = startIndex + 2;
+                    userEndIndex = userEndIndex - 2;
+                }
+
+                _userInfo = uriString.Substring(userStartIndex, userEndIndex);
+            }
+        }
+
+        /// <summary>
+        /// Extracts the query portion of the Uri string and returns the Uri string without it
+        /// </summary>
+        /// <param name="uriString">Uri string that is being parsed</param>
+        /// <returns>Uri string without the query</returns>
+        private string ExtractQuery(string uriString)
+        {
+            // Handle query
+            var queryIndex = uriString.IndexOf('?');
+            if (queryIndex >= 0)
+            {
+                _query = uriString.Substring(queryIndex);
+                uriString = uriString.Substring(0, queryIndex);
+            }
+
+            return uriString;
+        }
+
+        /// <summary>
+        /// Extracts the Fragment portion of the Uri string and returns the Uri string without it
+        /// </summary>
+        /// <param name="uriString">Uri string that is being parsed</param>
+        /// <returns>Uri string without the fragment</returns>
+        private string ExtractFragment(string uriString)
+        {
+            // Handle fragment
+            var fragmentIndex = uriString.IndexOf('#');
+            if (fragmentIndex >= 0)
+            {
+                _fragment = uriString.Substring(fragmentIndex);
+                uriString = uriString.Substring(0, fragmentIndex);
+            }
+
+            return uriString;
         }
 
         /// <summary>
@@ -722,6 +844,7 @@ namespace System
                 case "nntp":
                 case "telnet":
                 case "ldap":
+                case "ldaps":
                 case "net.tcp":
                 case "net.pipe":
                     if (!bRooted)
@@ -729,8 +852,17 @@ namespace System
                         throw new ArgumentException();
                     }
 
+                    // If present, extract user info and store in member variables
+                    ParseUserInfo(sUri, iStart);
+
+                    int credentialSeperater = sUri.IndexOf("@", iStart, sUri.IndexOf('/', iStart) - iStart);
+                    if (credentialSeperater > 0)
+                    {
+                        iStart = credentialSeperater;
+                    }
+
                     bAbsoluteUriRooted = bRooted;
-                    Split(sUri, iStart + 2, out sAuthority, out _AbsolutePath, true);
+                    Split(sUri, iStart + 2, out sAuthority, out _absolutePath, true);
                     break;
 
                 case "file":
@@ -764,7 +896,7 @@ namespace System
                         }
 
                         sAuthority = string.Empty;
-                        _AbsolutePath = sTrimmed;
+                        _absolutePath = sTrimmed;
                     }
                     else
                     {
@@ -772,11 +904,11 @@ namespace System
                         if (sUri.Length - sTrimmed.Length == 1 || sTrimmed.Length == 0)
                         {
                             sAuthority = string.Empty;
-                            _AbsolutePath = sUri.Length > 0 ? sUri : "/";
+                            _absolutePath = sUri.Length > 0 ? sUri : "/";
                         }
                         else
                         {
-                            Split(sTrimmed, 0, out sAuthority, out _AbsolutePath, true);
+                            Split(sTrimmed, 0, out sAuthority, out _absolutePath, true);
                         }
                     }
 
@@ -786,19 +918,22 @@ namespace System
                 case "news":
                 case "uuid":
                     sAuthority = string.Empty;
-                    _AbsolutePath = sUri.Substring(iStart);
+                    _absolutePath = sUri.Substring(iStart);
                     bAbsoluteUriRooted = false;
                     break;
 
                 case "mailto":
+                    // If present, extract user info and store in member variables
+                    ParseUserInfo(sUri, iStart);
+
                     if (bRooted)
                     {
                         sAuthority = string.Empty;
-                        _AbsolutePath = sUri.Substring(iStart);
+                        _absolutePath = sUri.Substring(iStart);
                     }
                     else
                     {
-                        Split(sUri, iStart, out sAuthority, out _AbsolutePath, false);
+                        Split(sUri, iStart, out sAuthority, out _absolutePath, false);
                     }
                     bAbsoluteUriRooted = false;
                     break;
@@ -806,17 +941,25 @@ namespace System
                 default:
                     if (bRooted)
                     {
-                        Split(sUri, iStart + 2, out sAuthority, out _AbsolutePath, true);
+                        Split(sUri, iStart + 2, out sAuthority, out _absolutePath, true);
                     }
                     else
                     {
                         sAuthority = string.Empty;
-                        _AbsolutePath = sUri.Substring(iStart);
+                        _absolutePath = sUri.Substring(iStart);
                     }
                     bAbsoluteUriRooted = bRooted;
                     break;
             }
 
+            // Remove user credentials before parsing host and port
+            int userInfoIndex = sAuthority.IndexOf('@');
+            if (userInfoIndex > 0)
+            {
+                sAuthority = sAuthority.Substring(userInfoIndex + 1);
+            }
+
+            // Parse host and port into member variables
             int iPortSplitter = sAuthority.LastIndexOf(':');
             if (iPortSplitter < 0 || sAuthority.LastIndexOf(']') > iPortSplitter)
             {
@@ -832,6 +975,20 @@ namespace System
             return bAbsoluteUriRooted;
         }
 
+        /// <summary>
+        /// Splits a URI string into its authority and path components, optionally replacing an empty path with a default value.
+        /// </summary>
+        /// <param name="sUri">The URI string to be split.</param>
+        /// <param name="iStart">The starting index in the URI string from which to begin parsing.</param>
+        /// <param name="sAuthority">
+        /// The output parameter that will contain the authority part of the URI, extracted from the specified starting index.
+        /// </param>
+        /// <param name="sPath">
+        /// The output parameter that will contain the path part of the URI. If <paramref name="bReplaceEmptyPath"/> is <c>true</c> and no path is found, this will be set to "/".
+        /// </param>
+        /// <param name="bReplaceEmptyPath">
+        /// A boolean value indicating whether to replace an empty path with a default value of "/".
+        /// </param>
         protected void Split(string sUri, int iStart, out string sAuthority, out string sPath, bool bReplaceEmptyPath)
         {
             int iSplitter = sUri.IndexOf('/', iStart);
@@ -954,7 +1111,7 @@ namespace System
                     }
                 }
 
-                _AbsolutePath = uri.Substring(4);
+                _absolutePath = uri.Substring(4);
             }
 
             // Else validate against RFC2141
@@ -996,7 +1153,7 @@ namespace System
                         }
                     }
 
-                    _AbsolutePath = uri.Substring(4);
+                    _absolutePath = uri.Substring(4);
                 }
             }
 
@@ -1044,7 +1201,7 @@ namespace System
                 }
             }
 
-            _AbsolutePath = uri.Substring(1);
+            _absolutePath = uri.Substring(1);
             _host = "";
             _isAbsoluteUri = false;
             _isUnc = false;
@@ -1085,11 +1242,11 @@ namespace System
             {
                 if (lhs._isAbsoluteUri && rhs._isAbsoluteUri)
                 {
-                    return lhs._AbsolutePath.ToLower() == rhs._AbsolutePath.ToLower();
+                    return lhs._absolutePath.ToLower() == rhs._absolutePath.ToLower();
                 }
                 else
                 {
-                    return lhs._OriginalUriString.ToLower() == rhs._OriginalUriString.ToLower();
+                    return lhs._originalUriString.ToLower() == rhs._originalUriString.ToLower();
                 }
             }
         }
@@ -1113,11 +1270,11 @@ namespace System
             {
                 if (lhs._isAbsoluteUri && rhs._isAbsoluteUri)
                 {
-                    return lhs._AbsolutePath.ToLower() != rhs._AbsolutePath.ToLower();
+                    return lhs._absolutePath.ToLower() != rhs._absolutePath.ToLower();
                 }
                 else
                 {
-                    return lhs._OriginalUriString.ToLower() != rhs._OriginalUriString.ToLower();
+                    return lhs._originalUriString.ToLower() != rhs._originalUriString.ToLower();
                 }
             }
         }

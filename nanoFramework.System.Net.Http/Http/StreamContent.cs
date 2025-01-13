@@ -127,7 +127,7 @@ namespace System.Net.Http
             else
             {
                 PrepareContent();
-                return _content;
+                return new ReadOnlyStream(_content);
             }
         }
 
